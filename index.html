@@ -1,218 +1,104 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Architecture Diagram Generator</title>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            text-align: center;
-            background: linear-gradient(to right, #4b79a1, #283e51);
-            color: white;
-        }
-        .container {
-            margin: 20px auto;
-            max-width: 450px;
-            padding: 20px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 10px;
-            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
-        }
-        label {
-            display: block;
-            margin-top: 10px;
-            font-weight: bold;
-        }
-        input {
-            width: 100%;
-            padding: 8px;
-            margin: 5px 0 10px;
-            border: none;
-            border-radius: 5px;
-            background: rgba(255, 255, 255, 0.7);
-            font-size: 16px;
-            text-align: center;
-        }
-        button {
-            width: 100%;
-            padding: 10px;
-            background: #ff6600;
-            border: none;
-            color: white;
-            font-size: 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: background 0.3s;
-        }
-        button:hover {
-            background: #ff4500;
-        }
-        .input-section, .room-section, .type-section, .generate-section, .modify-section {
-            display: none;
-        }
-        .floor-plan {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 2px;
-            margin-top: 20px;
-            border: 2px solid white;
-            padding: 10px;
-            position: relative;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 5px;
-        }
-        .room {
-            border: 2px solid white;
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            position: absolute;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            border-radius: 5px;
-            transition: transform 0.3s, background 0.3s;
-        }
-        .room:hover {
-            transform: scale(1.05);
-            background: rgba(255, 255, 255, 0.2) !important;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ARCH.AI — Architectural Design System</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .hero-visual { position:relative; width:360px; height:360px; margin:0 auto 40px; }
+    .ring { position:absolute; border-radius:50%; border:1px solid rgba(0,170,255,0.2); top:50%; left:50%; transform:translate(-50%,-50%); animation:spinRing 20s linear infinite; }
+    .ring:nth-child(2) { animation-duration:30s; animation-direction:reverse; border-style:dashed; }
+    .ring:nth-child(3) { animation-duration:15s; border-color:rgba(240,192,64,0.15); }
+    @keyframes spinRing { from{transform:translate(-50%,-50%) rotate(0deg);} to{transform:translate(-50%,-50%) rotate(360deg);} }
+    .ring-1{width:300px;height:300px;} .ring-2{width:220px;height:220px;} .ring-3{width:140px;height:140px;}
+    .blueprint-icon { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:90px; height:90px; border:2px solid var(--blue-bright); display:flex; align-items:center; justify-content:center; box-shadow:var(--glow-strong), inset 0 0 30px rgba(0,170,255,0.15); }
+    .blueprint-icon::before,.blueprint-icon::after { content:''; position:absolute; background:var(--blue-bright); }
+    .blueprint-icon::before { width:2px; height:50px; box-shadow:0 0 10px var(--blue-bright); }
+    .blueprint-icon::after  { width:50px; height:2px; box-shadow:0 0 10px var(--blue-bright); }
+    .bp-corner { position:absolute; width:10px; height:10px; background:var(--blue-bright); }
+    .bp-corner.tl{top:-2px;left:-2px;} .bp-corner.tr{top:-2px;right:-2px;} .bp-corner.bl{bottom:-2px;left:-2px;} .bp-corner.br{bottom:-2px;right:-2px;}
+    .data-point { position:absolute; width:6px; height:6px; background:var(--blue-bright); border-radius:50%; box-shadow:0 0 8px var(--blue-bright); animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:0.5;transform:scale(0.6);} }
+    .features { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; max-width:700px; margin:0 auto 48px; }
+    .feature-card { background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:20px; text-align:center; transition:border-color 0.2s,transform 0.2s; }
+    .feature-card:hover { border-color:var(--blue-mid); transform:translateY(-3px); }
+    .feature-icon { font-size:1.5rem; display:block; margin-bottom:8px; }
+    .feature-name { font-family:var(--font-mono); font-size:0.68rem; color:var(--text-secondary); letter-spacing:2px; text-transform:uppercase; }
+    @media(max-width:600px){.features{grid-template-columns:1fr 1fr;}.hero-visual{width:240px;height:240px;}.ring-1{width:200px;height:200px;}.ring-2{width:150px;height:150px;}.ring-3{width:100px;height:100px;}}
+  </style>
 </head>
 <body>
-    <h2>🏠 Architecture Diagram Generator</h2>
-    <div class="container">
-        <div class="input-section" style="display: block;">
-            <label>Land Width (meters):</label>
-            <input type="number" id="width" required>
-            <label>Land Height (meters):</label>
-            <input type="number" id="height" required>
-            <button onclick="nextStep('room-section')">Next ➡️</button>
+  <div class="page-wrapper">
+    <nav class="nav">
+      <a class="nav-logo" href="index.html">ARCH.AI</a>
+      <div class="nav-steps">
+        <span class="nav-step active">01 HOME</span>
+        <span class="nav-step">02 DETAILS</span>
+        <span class="nav-step">03 DIAGRAM</span>
+        <span class="nav-step">04 FINAL</span>
+      </div>
+    </nav>
+
+    <main class="main-content">
+      <div class="hero-visual fade-up">
+        <div class="ring ring-1">
+          <div class="data-point" style="top:10%;left:5%;"></div>
+          <div class="data-point" style="bottom:15%;right:8%;animation-delay:0.7s;"></div>
         </div>
-       
-        <div class="room-section">
-            <label>Number of Rooms:</label>
-            <input type="number" id="numRooms" required>
-            <button onclick="generateRoomTypes()">Next ➡️</button>
+        <div class="ring ring-2">
+          <div class="data-point" style="top:5%;right:5%;animation-delay:1.2s;"></div>
         </div>
-       
-        <div class="type-section" id="roomTypes"></div>
-       
-        <div class="generate-section">
-            <button onclick="generateLayout()">🏗️ Generate Architecture</button>
+        <div class="ring ring-3"></div>
+        <div class="blueprint-icon">
+          <div class="bp-corner tl"></div><div class="bp-corner tr"></div>
+          <div class="bp-corner bl"></div><div class="bp-corner br"></div>
         </div>
-       
-        <div class="modify-section">
-            <p>Need any modifications?</p>
-            <button onclick="enableModification()">🔧 Yes</button>
-            <button onclick="finalizeLayout()">✅ No</button>
+      </div>
+
+      <div class="hero">
+        <span class="hero-tag fade-up">Version 2.0 — CBLGA + GTA + 3D Visualization</span>
+        <h1 class="hero-title fade-up">
+          <span class="line1">Architectural</span>
+          <span class="line2">Design System</span>
+          <span class="line3">Blueprint · Plan · Visualize · 3D</span>
+        </h1>
+        <p class="hero-description fade-up">
+          Multi-floor 2D floor plans with constraint-based layout generation,
+          interactive element insertion, and real-time 3D visualization powered by Three.js.
+        </p>
+        <div class="features fade-up">
+          <div class="feature-card"><span class="feature-icon">📐</span><span class="feature-name">CBLGA Layout</span></div>
+          <div class="feature-card"><span class="feature-icon">🏢</span><span class="feature-name">Multi-Floor</span></div>
+          <div class="feature-card"><span class="feature-icon">🧊</span><span class="feature-name">3D View (GTA)</span></div>
+          <div class="feature-card"><span class="feature-icon">🚪</span><span class="feature-name">Insert Mode</span></div>
+          <div class="feature-card"><span class="feature-icon">💾</span><span class="feature-name">Save/Load</span></div>
+          <div class="feature-card"><span class="feature-icon">⚡</span><span class="feature-name">Live Edit</span></div>
         </div>
-       
-        <div id="floorPlan" class="floor-plan"></div>
-    </div>
+        <div class="hero-stats fade-up">
+          <div class="stat"><span class="stat-value">∞</span><span class="stat-label">Floors</span></div>
+          <div class="stat"><span class="stat-value">3D</span><span class="stat-label">Visualization</span></div>
+          <div class="stat"><span class="stat-value">0%</span><span class="stat-label">Wasted Space</span></div>
+        </div>
+        <div class="fade-up">
+          <button class="btn btn-primary" onclick="startApp()" id="start-btn">⬡ &nbsp; START DESIGNING</button>
+        </div>
+      </div>
+    </main>
 
-    <script>
-        function nextStep(section) {
-            document.querySelector('.' + section).style.display = 'block';
-        }
+    <div class="corner-deco tl"></div><div class="corner-deco tr"></div>
+    <div class="corner-deco bl"></div><div class="corner-deco br"></div>
+  </div>
 
-        function generateRoomTypes() {
-            const numRooms = parseInt(document.getElementById("numRooms").value);
-            let roomTypesDiv = document.getElementById("roomTypes");
-            roomTypesDiv.innerHTML = "";
-           
-            for (let i = 0; i < numRooms; i++) {
-                roomTypesDiv.innerHTML += `<div>
-                    <label>Room ${i + 1} Type:</label>
-                    <input type="text" class="roomType" required>
-                </div>`;
-            }
-            roomTypesDiv.innerHTML += '<button onclick="nextStep(\'generate-section\')">Next ➡️</button>';
-            document.querySelector('.type-section').style.display = 'block';
-        }
-
-        function generateLayout() {
-            const width = parseInt(document.getElementById("width").value);
-            const height = parseInt(document.getElementById("height").value);
-            const roomTypes = Array.from(document.getElementsByClassName("roomType")).map(input => input.value);
-            const numRooms = roomTypes.length;
-
-            let floorPlan = document.getElementById("floorPlan");
-            floorPlan.innerHTML = "";
-            floorPlan.style.width = `${width * 20}px`;
-            floorPlan.style.height = `${height * 20}px`;
-           
-            let colors = ["#ff5733", "#33ff57", "#3357ff", "#ff33a6", "#ffdb33", "#9933ff", "#33ffff", "#ff9933"];
-            let roomWidth = Math.floor(width / Math.sqrt(numRooms));
-            let roomHeight = Math.floor(height / Math.sqrt(numRooms));
-           
-            let xOffset = 0, yOffset = 0;
-            for (let i = 0; i < numRooms; i++) {
-                let div = document.createElement("div");
-                div.className = "room";
-                div.style.width = `${roomWidth * 20}px`;
-                div.style.height = `${roomHeight * 20}px`;
-                div.style.left = `${xOffset}px`;
-                div.style.top = `${yOffset}px`;
-                div.style.background = colors[i % colors.length];
-                div.innerText = `${roomTypes[i]}\n${roomWidth}m x ${roomHeight}m`;
-                div.dataset.width = roomWidth;
-                div.dataset.height = roomHeight;
-                div.dataset.index = i;
-                div.addEventListener("dblclick", () => modifyRoom(div));
-                floorPlan.appendChild(div);
-               
-                xOffset += roomWidth * 20;
-                if (xOffset + roomWidth * 20 > width * 20) {
-                    xOffset = 0;
-                    yOffset += roomHeight * 20;
-                }
-            }
-            document.querySelector('.modify-section').style.display = 'block';
-        }
-
-        function modifyRoom(room) {
-            let newWidth = parseInt(prompt("Enter new width (meters):"));
-            let newHeight = parseInt(prompt("Enter new height (meters):"));
-           
-            if (isNaN(newWidth) || isNaN(newHeight) || newWidth <= 0 || newHeight <= 0) return;
-           
-            room.dataset.width = newWidth;
-            room.dataset.height = newHeight;
-            room.style.width = `${newWidth * 20}px`;
-            room.style.height = `${newHeight * 20}px`;
-            room.innerText = `${room.innerText.split('\n')[0]}\n${newWidth}m x ${newHeight}m`;
-            adjustRooms();
-        }
-
-        function adjustRooms() {
-            let rooms = document.querySelectorAll(".room");
-            let width = parseInt(document.getElementById("width").value) * 20;
-            let xOffset = 0, yOffset = 0;
-           
-            rooms.forEach(room => {
-                room.style.left = `${xOffset}px`;
-                room.style.top = `${yOffset}px`;
-                xOffset += parseInt(room.dataset.width) * 20;
-                if (xOffset >= width) {
-                    xOffset = 0;
-                    yOffset += parseInt(room.dataset.height) * 20;
-                }
-            });
-        }
-
-        function enableModification() {
-            alert("Double-click any room to modify its size.");
-        }
-
-        function finalizeLayout() {
-            alert("Final architecture plan is ready!");
-        }
-    </script>
+  <script src="script.js"></script>
+  <script>
+    function startApp() {
+      localStorage.removeItem('archai_data');
+      const btn = document.getElementById('start-btn');
+      btn.textContent = 'Loading...';
+      btn.disabled = true;
+      setTimeout(() => { window.location.href = 'user-details.html'; }, 300);
+    }
+  </script>
 </body>
-      </html>
-
+</html>
