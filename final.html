@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ARCH.AI — Finalized Architecture</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    .final-main { width:100%; max-width:1100px; padding:40px 20px 60px; margin:0 auto; }
+    .diagram-canvas-wrap.finalized::after {
+      content:'FINALIZED';
+      position:absolute; bottom:20px; right:20px;
+      font-family:var(--font-display); font-size:0.65rem; font-weight:900;
+      letter-spacing:4px; color:rgba(0,229,160,0.35);
+      border:2px solid rgba(0,229,160,0.2); padding:6px 12px;
+      border-radius:2px; pointer-events:none; z-index:50; transform:rotate(-8deg);
+    }
+    .approved-stamp {
+      display:inline-flex; align-items:center; gap:8px;
+      font-family:var(--font-display); font-size:0.75rem;
+      color:var(--accent-green); border:2px solid rgba(0,229,160,0.4);
+      padding:8px 20px; border-radius:3px; letter-spacing:3px;
+      box-shadow:0 0 20px rgba(0,229,160,0.2); margin-bottom:20px;
+    }
+    .approved-stamp::before { content:'✓'; font-size:1rem; }
+    .summary-table { width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:0.75rem; }
+    .summary-table th { text-align:left; padding:10px 14px; background:var(--bg-card); color:var(--text-dim); letter-spacing:2px; text-transform:uppercase; font-size:0.65rem; border-bottom:1px solid var(--border); }
+    .summary-table td { padding:10px 14px; border-bottom:1px solid rgba(0,170,255,0.06); color:var(--text-secondary); vertical-align:middle; }
+    .summary-table tr:hover td { background:rgba(0,170,255,0.03); }
+    .room-swatch { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:8px; vertical-align:middle; }
+    .td-bright { color:var(--text-primary); font-weight:600; }
+    .final-actions { display:flex; gap:16px; margin-top:32px; flex-wrap:wrap; }
+    .print-hint { font-family:var(--font-mono); font-size:0.68rem; color:var(--text-dim); letter-spacing:1px; margin-top:12px; }
+    #canvas-3d-final { width:100%; display:block; background:#080d14; cursor:grab; }
+    #canvas-3d-final:active { cursor:grabbing; }
+    .floor-diagram-block { margin-bottom:24px; }
+    .floor-diagram-title {
+      font-family:var(--font-mono); font-size:0.7rem; color:var(--blue-bright);
+      letter-spacing:3px; text-transform:uppercase;
+      margin-bottom:8px; padding:6px 12px;
+      background:rgba(0,170,255,0.06); border:1px solid var(--border);
+      border-radius:var(--radius); display:inline-block;
+    }
+    .floor-diagram-container { position:relative; width:100%; background:#081420; overflow:hidden; }
+  </style>
+</head>
+<body>
+  <div class="page-wrapper">
+    <nav class="nav">
+      <a class="nav-logo" href="index.html">ARCH.AI</a>
+      <div class="nav-steps">
+        <span class="nav-step done">01 HOME</span>
+        <span class="nav-step done">02 DETAILS</span>
+        <span class="nav-step done">03 DIAGRAM</span>
+        <span class="nav-step active">04 FINAL</span>
+      </div>
+    </nav>
+
+    <div class="final-main">
+
+      <div class="page-header fade-up">
+        <span class="tag">Step 04 / Approved Plan</span>
+        <h1>Finalized <span>Architecture</span> Diagram</h1>
+      </div>
+
+      <div style="text-align:center;margin-bottom:24px;" class="fade-up">
+        <div class="approved-stamp">PLAN APPROVED</div>
+      </div>
+
+      <div class="final-header-bar fade-up">
+        <span class="final-badge" id="final-badge-text">Loading…</span>
+        <span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text-dim);letter-spacing:1px;" id="final-date"></span>
+      </div>
+
+      <!-- View toggle -->
+      <div class="view-toggle-bar fade-up" style="margin-bottom:16px;">
+        <button class="view-toggle-btn active" id="vtb-2d" onclick="switchFinalView('2d')">2D FLOORS</button>
+        <button class="view-toggle-btn"         id="vtb-3d" onclick="switchFinalView('3d')">3D MODEL</button>
+      </div>
+
+      <!-- 2D: all floors rendered -->
+      <div id="final-panel-2d">
+        <div id="all-floors-diagrams"></div>
+      </div>
+
+      <!-- 3D view -->
+      <div id="final-panel-3d" style="display:none;">
+        <div class="diagram-canvas-wrap finalized">
+          <canvas id="canvas-3d-final" height="520"></canvas>
+        </div>
+        <div class="info-box" style="margin-top:10px;">
+          <span class="info-key">GTA 3D View:</span> Drag to rotate · Scroll / pinch to zoom
+        </div>
+      </div>
+
+      <!-- Room specs table -->
+      <div class="fade-up" style="margin-top:28px;">
+        <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--text-dim);letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;">
+          Room Specifications
+        </div>
+        <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th>Floor</th><th>Room</th><th>Width</th><th>Length</th><th>Area</th><th>% of Land</th>
+              </tr>
+            </thead>
+            <tbody id="summary-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Elements summary -->
+      <div class="info-box fade-up" id="elements-info" style="margin-top:12px;"></div>
+
+      <!-- Totals info box -->
+      <div class="info-box fade-up" id="final-info" style="margin-top:8px;"></div>
+
+      <div class="final-actions fade-up">
+        <button class="btn btn-secondary" onclick="window.location.href='diagram.html'">← Back to Diagram</button>
+        <button class="btn btn-secondary" onclick="window.print()">⎙ Print / Export</button>
+        <button class="btn btn-primary"   onclick="startNew()">⬡ New Project</button>
+      </div>
+
+      <p class="print-hint">Tip: Ctrl+P / ⌘P → Save as PDF to export your finalized plan.</p>
+
+    </div>
+
+    <div class="corner-deco tl"></div><div class="corner-deco tr"></div>
+    <div class="corner-deco bl"></div><div class="corner-deco br"></div>
+  </div>
+
+  <script src="script.js"></script>
+  <script>
+    let finalData   = null;
+    let renderer3DF = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      finalData = loadData();
+      if (!finalData || !finalData.floors) {
+        document.getElementById('all-floors-diagrams').innerHTML =
+          '<p style="color:var(--danger);font-family:monospace;padding:40px;text-align:center;">⚠ No finalized data. Please complete the diagram step.</p>';
+        return;
+      }
+      finalData = normaliseFloors(finalData);
+
+      renderAllFloors();
+      buildSummaryTable();
+      updateFinalInfo();
+      buildElementsSummary();
+
+      /* Header badge */
+      document.getElementById('final-badge-text').textContent =
+        `${finalData.numFloors} Floor(s) · ${finalData.landWidth}m × ${finalData.landLength}m · ` +
+        `${finalData.floors.reduce((s, f) => s + f.rooms.length, 0)} Rooms`;
+      const now = new Date();
+      document.getElementById('final-date').textContent =
+        `Generated: ${now.toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'})} ` +
+        `${now.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'})}`;
+    });
+
+    /* ── Render all 2D floor diagrams ── */
+    function renderAllFloors() {
+      const wrap = document.getElementById('all-floors-diagrams');
+      wrap.innerHTML = '';
+
+      finalData.floors.forEach((floor, fIdx) => {
+        const block = document.createElement('div');
+        block.className = 'floor-diagram-block';
+
+        const title = document.createElement('div');
+        title.className   = 'floor-diagram-title';
+        title.textContent = `FLOOR ${fIdx + 1}${fIdx === 0 ? ' — Ground' : ''}`;
+
+        const wrap2 = document.createElement('div');
+        wrap2.className = 'diagram-canvas-wrap finalized';
+        wrap2.style.marginBottom = '4px';
+
+        const container = document.createElement('div');
+        container.className = 'floor-diagram-container';
+        container.id = `final-floor-${fIdx}`;
+
+        wrap2.appendChild(container);
+        block.appendChild(title);
+        block.appendChild(wrap2);
+
+        /* Legend */
+        const legend = document.createElement('div');
+        legend.className = 'diagram-legend';
+        block.appendChild(legend);
+
+        wrap.appendChild(block);
+
+        /* Render after DOM inserted */
+        setTimeout(() => {
+          const cW = container.offsetWidth || 800;
+          const cH = Math.min(500, Math.max(250,
+            Math.round((finalData.landLength / finalData.landWidth) * cW * 0.7)));
+          container.style.height = cH + 'px';
+
+          const layout = buildLayout(floor.rooms, cW, cH, finalData.landWidth, finalData.landLength);
+          renderDiagram(container, layout, floor.rooms, floor.elements,
+            false, false, null, null, null, null);
+          buildLegend(legend, floor.rooms);
+        }, 50);
+      });
+    }
+
+    /* ── Summary table ── */
+    function buildSummaryTable() {
+      const tbody     = document.getElementById('summary-tbody');
+      const totalArea = finalData.landWidth * finalData.landLength;
+
+      finalData.floors.forEach((floor, fIdx) => {
+        floor.rooms.forEach((room, rIdx) => {
+          const color    = ROOM_COLORS[rIdx % ROOM_COLORS.length];
+          const roomArea = room.width * room.length;
+          const pct      = totalArea > 0 ? ((roomArea / totalArea) * 100).toFixed(1) : '—';
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="color:var(--accent-gold)">F${fIdx + 1}</td>
+            <td><span class="room-swatch" style="background:${color.bg};border:1px solid ${color.border};"></span>
+                <span class="td-bright">Room ${rIdx + 1}</span></td>
+            <td>${room.width} m</td>
+            <td>${room.length} m</td>
+            <td class="td-bright">${roomArea} m²</td>
+            <td>${pct}%</td>`;
+          tbody.appendChild(tr);
+        });
+      });
+    }
+
+    /* ── Elements summary ── */
+    function buildElementsSummary() {
+      let doors = 0, windows = 0, stairs = 0;
+      finalData.floors.forEach(f => (f.elements || []).forEach(e => {
+        if (e.type === 'door')   doors++;
+        if (e.type === 'window') windows++;
+        if (e.type === 'stair')  stairs++;
+      }));
+      document.getElementById('elements-info').innerHTML =
+        `<span class="info-key">Structural Elements:</span> ` +
+        `🚪 ${doors} Door(s) &nbsp;|&nbsp; 🪟 ${windows} Window(s) &nbsp;|&nbsp; 🪜 ${stairs} Stair(s)`;
+    }
+
+    /* ── Final info box ── */
+    function updateFinalInfo() {
+      const total = finalData.landWidth * finalData.landLength;
+      document.getElementById('final-info').innerHTML =
+        `<span class="info-key">Land:</span> ${total} m² &nbsp;|&nbsp;
+         <span class="info-key">Floors:</span> ${finalData.numFloors} &nbsp;|&nbsp;
+         <span class="info-key">Rooms per floor:</span> auto-fitted (CBLGA) &nbsp;|&nbsp;
+         <span class="info-key">Coverage:</span> 100%`;
+    }
+
+    /* ── View toggle ── */
+    function switchFinalView(mode) {
+      document.getElementById('final-panel-2d').style.display = mode === '2d' ? 'block' : 'none';
+      document.getElementById('final-panel-3d').style.display = mode === '3d' ? 'block' : 'none';
+      document.getElementById('vtb-2d').classList.toggle('active', mode === '2d');
+      document.getElementById('vtb-3d').classList.toggle('active', mode === '3d');
+
+      if (mode === '3d' && !renderer3DF) {
+        const canvas = document.getElementById('canvas-3d-final');
+        canvas.height = 520;
+        renderer3DF = launch3DView(canvas, finalData.floors, finalData.landWidth, finalData.landLength);
+      }
+    }
+
+    /* Resize */
+    let _rt;
+    window.addEventListener('resize', () => {
+      clearTimeout(_rt);
+      _rt = setTimeout(renderAllFloors, 250);
+    });
+
+    function startNew() {
+      localStorage.removeItem('archai_data');
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>
