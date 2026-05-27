@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ARCH.AI — 2D / 3D Diagram</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Three.js for GTA 3D visualization -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    .diagram-main { width:100%; max-width:1100px; padding:40px 20px 60px; margin:0 auto; }
+    #diagram-container { position:relative; width:100%; background:#081420; overflow:hidden; }
+    #canvas-3d { width:100%; display:block; background:#080d14; cursor:grab; }
+    #canvas-3d:active { cursor:grabbing; }
+    .view-panel { display:none; }
+    .view-panel.active { display:block; }
+  </style>
+</head>
+<body>
+  <div class="page-wrapper">
+    <nav class="nav">
+      <a class="nav-logo" href="index.html">ARCH.AI</a>
+      <div class="nav-steps">
+        <span class="nav-step done">01 HOME</span>
+        <span class="nav-step done">02 DETAILS</span>
+        <span class="nav-step active">03 DIAGRAM</span>
+        <span class="nav-step">04 FINAL</span>
+      </div>
+    </nav>
+
+    <div class="diagram-main">
+
+      <div class="page-header fade-up">
+        <span class="tag">Step 03 / Floor Plan + 3D View</span>
+        <h1>2D / <span>3D Architectural</span> Diagram</h1>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="diagram-toolbar fade-up">
+        <div class="toolbar-info">
+          Land: <span id="tb-land">—</span> &nbsp;·&nbsp;
+          Floors: <span id="tb-floors">—</span> &nbsp;·&nbsp;
+          Rooms: <span id="tb-rooms">—</span> &nbsp;·&nbsp;
+          Area: <span id="tb-area">—</span>
+        </div>
+        <div class="btn-group" style="justify-content:flex-end;gap:8px;">
+          <button class="btn btn-secondary btn-sm" id="modify-btn"  onclick="toggleModifyMode()">✎ Modify</button>
+          <button class="btn btn-secondary btn-sm" id="insert-btn"  onclick="toggleInsertPanel()">+ Insert</button>
+          <button class="btn btn-secondary btn-sm" id="view3d-btn"  onclick="toggle3DView()">🧊 3D View</button>
+          <button class="btn btn-gold btn-sm"                       onclick="confirmDiagram()">✓ Confirm</button>
+        </div>
+      </div>
+
+      <!-- Insert element picker -->
+      <div class="insert-picker" id="insert-picker">
+        <span class="insert-picker-label">Insert:</span>
+        <button class="insert-type-btn" id="ib-door"   onclick="activateInsert('door')">  🚪 Door</button>
+        <button class="insert-type-btn" id="ib-window" onclick="activateInsert('window')">🪟 Window</button>
+        <button class="cancel-btn insert-cancel-btn"   onclick="cancelInsert()">✕ Cancel</button>
+      </div>
+
+      <!-- Mode strip -->
+      <div class="mode-strip view-mode" id="mode-strip">
+        <div class="mode-dot" id="mode-dot"></div>
+        <span id="mode-text">VIEW MODE — Use toolbar buttons to modify, insert elements, or switch to 3D</span>
+      </div>
+
+      <!-- Floor navigation tabs -->
+      <div class="floor-tabs" id="floor-tabs"></div>
+
+      <!-- View toggle: 2D vs 3D -->
+      <div class="view-toggle-bar">
+        <button class="view-toggle-btn active" id="vtb-2d" onclick="switchView('2d')">2D PLAN</button>
+        <button class="view-toggle-btn"         id="vtb-3d" onclick="switchView('3d')">3D MODEL</button>
+      </div>
+
+      <!-- 2D Diagram -->
+      <div class="view-panel active" id="panel-2d">
+        <div class="diagram-canvas-wrap fade-up">
+          <div id="diagram-container"></div>
+        </div>
+        <div class="diagram-legend" id="diagram-legend"></div>
+        <div class="info-box" style="margin-top:12px;" id="diagram-info">Loading…</div>
+      </div>
+
+      <!-- 3D View -->
+      <div class="view-panel" id="panel-3d">
+        <div class="diagram-canvas-wrap" style="overflow:hidden;">
+          <canvas id="canvas-3d" height="500"></canvas>
+        </div>
+        <div class="info-box" style="margin-top:12px;">
+          <span class="info-key">3D GTA View:</span> Drag to rotate · Scroll to zoom · Touch pinch to zoom
+        </div>
+      </div>
+
+      <!-- Save / Load Project -->
+      <div class="project-panel fade-up">
+        <div class="project-panel-title">💾 Save / Load Project</div>
+        <div class="project-row">
+          <input type="text" class="project-input" id="project-name-input" placeholder="Project name…" />
+          <button class="btn btn-secondary btn-sm" onclick="doSaveProject()">Save</button>
+          <button class="btn btn-secondary btn-sm" onclick="renderProjectList()">Refresh List</button>
+        </div>
+        <div class="project-list" id="project-list"></div>
+      </div>
+
+    </div><!-- /diagram-main -->
+
+    <!-- ROOM EDIT MODAL -->
+    <div class="modal-overlay" id="edit-modal">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal()">✕</button>
+        <div class="modal-title" id="modal-room-title">EDIT ROOM</div>
+        <div class="modal-subtitle">Changes proportionally adjust other rooms (CBLGA resize)</div>
+        <div class="field-group">
+          <label class="field-label">New Width (m)</label>
+          <input type="number" id="modal-width" min="1" placeholder="Width" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">New Length (m)</label>
+          <input type="number" id="modal-length" min="1" placeholder="Length" />
+        </div>
+        <div class="info-box" id="modal-info" style="font-size:0.68rem;padding:10px 14px;margin-top:8px;">
+          Other rooms will scale proportionally.
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary btn-sm" onclick="closeModal()" style="flex:1;">Cancel</button>
+          <button class="btn btn-primary btn-sm"   onclick="applyRoomEdit()" style="flex:1;">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="corner-deco tl"></div><div class="corner-deco tr"></div>
+    <div class="corner-deco bl"></div><div class="corner-deco br"></div>
+  </div>
+
+  <script src="script.js"></script>
+  <script>
+    /* ═══════════════════════════════════════════════════
+       STATE
+    ═══════════════════════════════════════════════════ */
+    let data          = null;   /* full project */
+    let activeFloor   = 0;      /* currently visible floor index */
+    let currentLayout = null;   /* CBLGA layout for active floor */
+    let modifyMode    = false;
+    let insertMode    = false;
+    let insertType    = null;   /* 'door' | 'window' */
+    let editingRoomId = null;
+    let renderer3D    = null;   /* Three.js renderer instance */
+    let view3DReady   = false;
+
+    /* ═══════════════════════════════════════════════════
+       INIT
+    ═══════════════════════════════════════════════════ */
+    window.addEventListener('DOMContentLoaded', () => {
+      data = loadData();
+      if (!data || !data.floors) {
+        document.getElementById('diagram-container').innerHTML =
+          '<p style="color:var(--danger);font-family:monospace;padding:40px;text-align:center;">⚠ No data. Please go back.</p>';
+        return;
+      }
+      data = normaliseFloors(data);
+      saveData(data);
+
+      buildFloorTabs();
+      updateToolbar();
+      initDiagram();
+      renderProjectList();
+    });
+
+    /* ═══════════════════════════════════════════════════
+       FLOOR TABS
+    ═══════════════════════════════════════════════════ */
+    function buildFloorTabs() {
+      const tabBar = document.getElementById('floor-tabs');
+      tabBar.innerHTML = '';
+      data.floors.forEach((fl, i) => {
+        const btn = document.createElement('button');
+        btn.className   = 'floor-tab' + (i === activeFloor ? ' active' : '');
+        btn.textContent = `Floor ${i + 1}${i === 0 ? ' (G)' : ''}`;
+        btn.addEventListener('click', () => switchFloor(i));
+        tabBar.appendChild(btn);
+      });
+    }
+
+    function switchFloor(idx) {
+      /* Snapshot current elements before switching */
+      snapshotElements();
+      activeFloor = idx;
+      document.querySelectorAll('.floor-tab').forEach((t, i) =>
+        t.classList.toggle('active', i === idx));
+      initDiagram();
+      updateInfoBox();
+    }
+
+    /* ═══════════════════════════════════════════════════
+       DIAGRAM INIT (CBLGA)
+    ═══════════════════════════════════════════════════ */
+    function getCanvasH(cW) {
+      return Math.min(700, Math.max(300, Math.round((data.landLength / data.landWidth) * cW)));
+    }
+
+    function initDiagram() {
+      const container = document.getElementById('diagram-container');
+      const cW  = container.offsetWidth || 800;
+      const cH  = getCanvasH(cW);
+      container.style.height = cH + 'px';
+
+      const floor = data.floors[activeFloor];
+
+      /* CBLGA: build pixel layout */
+      currentLayout = buildLayout(floor.rooms, cW, cH, data.landWidth, data.landLength);
+
+      /* Render 2D with all modes */
+      renderDiagram(
+        container, currentLayout, floor.rooms, floor.elements,
+        modifyMode, insertMode, insertType,
+        modifyMode ? openEditModal : null,
+        insertMode ? handleInsert   : null,
+        modifyMode ? handleElRemove : null
+      );
+
+      buildLegend(document.getElementById('diagram-legend'), floor.rooms);
+      updateInfoBox();
+    }
+
+    /* Resize */
+    let _rt;
+    window.addEventListener('resize', () => { clearTimeout(_rt); _rt = setTimeout(initDiagram, 220); });
+
+    /* ═══════════════════════════════════════════════════
+       TOOLBAR
+    ═══════════════════════════════════════════════════ */
+    function updateToolbar() {
+      const n = data.numFloors;
+      const r = data.floors.reduce((s, f) => s + f.rooms.length, 0);
+      document.getElementById('tb-land').textContent   = `${data.landWidth}m × ${data.landLength}m`;
+      document.getElementById('tb-floors').textContent = n;
+      document.getElementById('tb-rooms').textContent  = r;
+      document.getElementById('tb-area').textContent   = `${data.landWidth * data.landLength}m²`;
+    }
+
+    function updateInfoBox() {
+      const fl    = data.floors[activeFloor];
+      const rooms = fl.rooms;
+      const els   = fl.elements || [];
+      const list  = rooms.map((r, i) =>
+        `<span class="info-key">R${i+1}:</span> ${r.width}×${r.length}m`).join(' ');
+      document.getElementById('diagram-info').innerHTML =
+        `<span class="info-key">Floor ${activeFloor + 1}:</span> ${rooms.length} rooms · ${els.length} element(s) · ${list}`;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       MODIFY MODE
+    ═══════════════════════════════════════════════════ */
+    function toggleModifyMode() {
+      cancelInsert();
+      modifyMode = !modifyMode;
+      const btn   = document.getElementById('modify-btn');
+      const strip = document.getElementById('mode-strip');
+      if (modifyMode) {
+        btn.classList.add('btn-modify-active');
+        strip.className = 'mode-strip edit-mode';
+        document.getElementById('mode-dot').style.background = 'var(--accent-gold)';
+        document.getElementById('mode-text').textContent = 'EDIT MODE — Double-click a room to resize · Double-click an element to remove';
+      } else {
+        btn.classList.remove('btn-modify-active');
+        strip.className = 'mode-strip view-mode';
+        document.getElementById('mode-dot').style.background = '';
+        document.getElementById('mode-text').textContent = 'VIEW MODE — Use toolbar buttons to modify, insert, or view in 3D';
+      }
+      initDiagram();
+    }
+
+    /* ═══════════════════════════════════════════════════
+       INSERT MODE
+    ═══════════════════════════════════════════════════ */
+    function toggleInsertPanel() {
+      const picker = document.getElementById('insert-picker');
+      picker.classList.toggle('open');
+      if (!picker.classList.contains('open')) cancelInsert();
+    }
+
+    function activateInsert(type) {
+      cancelInsert(false); /* keep picker open */
+      insertMode  = true;
+      insertType  = type;
+      modifyMode  = false;
+      document.getElementById('modify-btn').classList.remove('btn-modify-active');
+      document.querySelectorAll('.insert-type-btn').forEach(b => b.classList.remove('selected'));
+      document.getElementById(`ib-${type}`).classList.add('selected');
+
+      const strip = document.getElementById('mode-strip');
+      strip.className = 'mode-strip insert-mode-strip';
+      document.getElementById('mode-text').textContent = `INSERT MODE — Click any room to place a ${type}. Drag to reposition.`;
+      initDiagram();
+    }
+
+    function cancelInsert(closePicker = true) {
+      insertMode = false;
+      insertType = null;
+      document.querySelectorAll('.insert-type-btn').forEach(b => b.classList.remove('selected'));
+      if (closePicker) document.getElementById('insert-picker').classList.remove('open');
+      const strip = document.getElementById('mode-strip');
+      if (strip.classList.contains('insert-mode-strip')) {
+        strip.className = 'mode-strip view-mode';
+        document.getElementById('mode-text').textContent = 'VIEW MODE — Use toolbar buttons to modify, insert, or view in 3D';
+      }
+      initDiagram();
+    }
+
+    function handleInsert(type, x, y, roomId) {
+      const el = createElement(type, x, y, roomId, activeFloor);
+      if (!data.floors[activeFloor].elements) data.floors[activeFloor].elements = [];
+      data.floors[activeFloor].elements.push(el);
+      saveData(data);
+      cancelInsert(false); /* stay in picker but deactivate crosshair */
+      insertMode = false;
+      document.getElementById('mode-text').textContent = `${type} placed. Select another type or Cancel.`;
+      initDiagram();
+      showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} placed!`, 'success');
+    }
+
+    function handleElRemove(elId) {
+      if (!confirm('Remove this element?')) return;
+      data.floors[activeFloor].elements =
+        (data.floors[activeFloor].elements || []).filter(e => e.id !== elId);
+      saveData(data);
+      initDiagram();
+      showToast('Element removed', 'success');
+    }
+
+    /* Snapshot dragged element positions back to data */
+    function snapshotElements() {
+      const container = document.getElementById('diagram-container');
+      const els       = container.querySelectorAll('.struct-element');
+      els.forEach(el => {
+        const id  = el.dataset.elId;
+        const arr = data.floors[activeFloor].elements;
+        const obj = arr && arr.find(e => e.id === id);
+        if (obj) {
+          obj.x = parseInt(el.style.left) || obj.x;
+          obj.y = parseInt(el.style.top)  || obj.y;
+        }
+      });
+      saveData(data);
+    }
+
+    /* ═══════════════════════════════════════════════════
+       3D VIEW (GTA)
+    ═══════════════════════════════════════════════════ */
+    function toggle3DView() {
+      switchView(document.getElementById('panel-3d').classList.contains('active') ? '2d' : '3d');
+    }
+
+    function switchView(mode) {
+      document.getElementById('panel-2d').classList.toggle('active', mode === '2d');
+      document.getElementById('panel-3d').classList.toggle('active', mode === '3d');
+      document.getElementById('vtb-2d').classList.toggle('active', mode === '2d');
+      document.getElementById('vtb-3d').classList.toggle('active', mode === '3d');
+      document.getElementById('view3d-btn').textContent = mode === '3d' ? '📐 2D Plan' : '🧊 3D View';
+
+      if (mode === '3d' && !view3DReady) {
+        init3DView();
+      }
+    }
+
+    function init3DView() {
+      snapshotElements();
+      const canvas = document.getElementById('canvas-3d');
+      canvas.height = 500;
+
+      /* Dispose previous renderer if it exists */
+      if (renderer3D && renderer3D._cleanup) {
+        renderer3D._cleanup();
+        renderer3D = null;
+      }
+
+      renderer3D  = launch3DView(canvas, data.floors, data.landWidth, data.landLength);
+      view3DReady = true;
+    }
+
+    /* Reload 3D when data changes */
+    function refresh3D() {
+      view3DReady = false;
+      if (document.getElementById('panel-3d').classList.contains('active')) {
+        init3DView();
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════
+       ROOM EDIT MODAL (CBLGA resize)
+    ═══════════════════════════════════════════════════ */
+    function openEditModal(roomId) {
+      editingRoomId = roomId;
+      const floor   = data.floors[activeFloor];
+      const room    = floor.rooms.find(r => r.id === roomId);
+      if (!room) return;
+      const idx     = floor.rooms.indexOf(room);
+
+      document.getElementById('modal-room-title').textContent = `EDIT ROOM ${idx + 1} — Floor ${activeFloor + 1}`;
+      document.getElementById('modal-width').value  = room.width;
+      document.getElementById('modal-length').value = room.length;
+      document.getElementById('modal-info').textContent =
+        `Current: ${room.width}×${room.length}m. Adjusting resizes ${floor.rooms.length - 1} other room(s) proportionally (CBLGA).`;
+      document.getElementById('modal-info').style.color = '';
+      document.getElementById('edit-modal').classList.add('open');
+      document.getElementById('modal-width').focus();
+    }
+
+    function closeModal() {
+      document.getElementById('edit-modal').classList.remove('open');
+      editingRoomId = null;
+    }
+
+    function applyRoomEdit() {
+      const newW = parseFloat(document.getElementById('modal-width').value);
+      const newL = parseFloat(document.getElementById('modal-length').value);
+      const info = document.getElementById('modal-info');
+
+      if (!newW || newW <= 0 || !newL || newL <= 0) {
+        info.textContent = '⚠ Width and Length must be positive.';
+        info.style.color = 'var(--danger)';
+        return;
+      }
+      if (newW * newL >= data.landWidth * data.landLength) {
+        info.textContent = `⚠ Room cannot equal/exceed total land area.`;
+        info.style.color = 'var(--danger)';
+        return;
+      }
+
+      /* CBLGA proportional resize */
+      data.floors[activeFloor].rooms = proportionalResize(
+        data.floors[activeFloor].rooms, editingRoomId, newW, newL, data.landWidth, data.landLength
+      );
+      saveData(data);
+      closeModal();
+      initDiagram();
+      refresh3D();
+      showToast('Room updated', 'success');
+    }
+
+    document.getElementById('edit-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); cancelInsert(); } });
+
+    /* ═══════════════════════════════════════════════════
+       CONFIRM
+    ═══════════════════════════════════════════════════ */
+    function confirmDiagram() {
+      snapshotElements();
+      saveData(data);
+      window.location.href = 'final.html';
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SAVE / LOAD PROJECT
+    ═══════════════════════════════════════════════════ */
+    function doSaveProject() {
+      snapshotElements();
+      const name = document.getElementById('project-name-input').value.trim();
+      if (!name) { showToast('Enter a project name first', 'error'); return; }
+      saveProject(name);
+      renderProjectList();
+      showToast(`Saved: "${name}"`, 'success');
+    }
+
+    function renderProjectList() {
+      const all  = loadAllProjects();
+      const list = document.getElementById('project-list');
+      list.innerHTML = '';
+      const keys = Object.keys(all);
+      if (keys.length === 0) {
+        list.innerHTML = '<div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text-dim);padding:8px;">No saved projects.</div>';
+        return;
+      }
+      keys.forEach(name => {
+        const p   = all[name];
+        const div = document.createElement('div');
+        div.className = 'project-list-item';
+        const date = p.savedAt ? new Date(p.savedAt).toLocaleString() : '—';
+        div.innerHTML = `
+          <span class="pli-name">${name}</span>
+          <span class="pli-date">${date}</span>
+          <span class="pli-actions">
+            <button class="pli-btn" onclick="doLoadProject('${name}')">Load</button>
+            <button class="pli-btn del" onclick="doDeleteProject('${name}')">Delete</button>
+          </span>`;
+        list.appendChild(div);
+      });
+    }
+
+    function doLoadProject(name) {
+      const p = loadProject(name);
+      if (!p) { showToast('Project not found', 'error'); return; }
+      saveData(p);
+      data = normaliseFloors(p);
+      saveData(data);
+      activeFloor = 0;
+      view3DReady = false;
+      buildFloorTabs();
+      updateToolbar();
+      initDiagram();
+      showToast(`Loaded: "${name}"`, 'success');
+    }
+
+    function doDeleteProject(name) {
+      if (!confirm(`Delete project "${name}"?`)) return;
+      deleteProject(name);
+      renderProjectList();
+      showToast(`Deleted: "${name}"`, 'success');
+    }
+
+    /* ═══════════════════════════════════════════════════
+       TOAST
+    ═══════════════════════════════════════════════════ */
+    function showToast(msg, type = '') {
+      const t = document.createElement('div');
+      t.className   = 'toast ' + type;
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2800);
+    }
+  </script>
+</body>
+</html>
